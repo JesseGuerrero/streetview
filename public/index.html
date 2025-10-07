@@ -115,6 +115,50 @@ require([
           }
         });
         view.map.add(google3DTiles)
+        const footprints = new FeatureLayer({
+          portalItem: {
+            id: "0173d18b79d243f69d24ab94cb3d961b"
+          },
+          title: "Footprints",
+          outFields: ["*"],
+          popupEnabled: true,
+          popupTemplate: {
+            title: "{name}",
+            content: [
+                {
+                    type: "fields",
+                    fieldInfos: [
+                        { fieldName: "Address", label: "Address" },
+                        { fieldName: "Zip_Code", label: "Zip Code" },
+                    ]
+                }
+            ],
+            outFields: ["*"]
+          },
+          elevationInfo: {
+            mode: "on-the-ground",
+            offset: 0,
+            unit: "meters"
+          },
+          renderer: {
+            type: "simple",
+            symbol: {
+              type: "polygon-3d",
+              symbolLayers: [
+                {
+                  type: "fill",
+                  material: { color: [60, 60, 200, 0.4] }
+                },
+                {
+                  type: "line",
+                  material: { color: [0, 0, 0, 0.0] },
+                  size: 4
+                }
+              ]
+            }
+          },
+        })
+        view.map.add(footprints)
 
         const streetViewWidget = document.createElement("div");
       streetViewWidget.id = "streetViewWidget";
@@ -366,7 +410,7 @@ require([
               saveButton.classList.remove('hidden');
             }
 
-            const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=300x300&location=${latitude},${longitude}&fov=80&heading=${currentHeading}&pitch=0&key={{ google street view }}`;
+            const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=900x900&location=${latitude},${longitude}&fov=80&heading=${currentHeading}&pitch=0&key={{ google street view }}`;
             streetViewImage.src = streetViewUrl;
 
             streetViewWidget.style.display = "block";

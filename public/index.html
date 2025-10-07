@@ -169,7 +169,37 @@ require([
                 }
               }]
             }
-          }
+          },
+            labelingInfo: [{
+  labelExpressionInfo: {
+    expression: "$feature.Address"
+  },
+  symbol: {
+    type: "label-3d",
+    symbolLayers: [{
+      type: "text",
+      material: { color: "white" },
+      halo: { color: "black", size: 2 },
+      size: 12
+    }],
+    verticalOffset: {
+      screenLength: 250,
+      maxWorldLength: 320,  // Much larger value
+      minWorldLength: 250
+    },
+    callout: {
+      type: "line",
+      size: 2,
+      color: "white",
+      border: {
+        color: "black"
+      }
+    }
+  },
+  labelPlacement: "above-center",
+  where: "Address IS NOT NULL"
+}],
+labelsVisible: false
         })
         view.map.add(footprints)
 

@@ -381,7 +381,6 @@ require([
 
         view.on("double-click", async (event) => {
           event.stopPropagation();
-
           view.hitTest(event).then(async (response) => {
             const latitude = event.mapPoint.latitude;
             const longitude = event.mapPoint.longitude;

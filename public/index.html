@@ -102,6 +102,14 @@ require([
             heading: 90,
             tilt: 65
           },
+          popup: {
+            dockEnabled: true,
+            dockOptions: {
+              buttonEnabled: false,
+              breakpoint: false,
+              position: "top-right"
+            }
+          },
           environment: {
             weather: {
               type: "sunny",
@@ -139,27 +147,29 @@ require([
             outFields: ["*"]
           },
           elevationInfo: {
-            mode: "on-the-ground",
-            offset: 0,
+            mode: "on-the-ground",  // Changed from "relative-to-scene" to ensure it wraps on top
+            offset: 1,              // Small positive offset to ensure it's above the ground
+            featureExpressionInfo: {
+              expression: "1"       // Changed from "0" to ensure it's slightly above ground level
+            },
             unit: "meters"
           },
           renderer: {
             type: "simple",
             symbol: {
               type: "polygon-3d",
-              symbolLayers: [
-                {
-                  type: "fill",
-                  material: { color: [60, 60, 200, 0.4] }
+              symbolLayers: [{
+                type: "fill",
+                material: {
+                  color: [60, 60, 200, 0.4]
                 },
-                {
-                  type: "line",
-                  material: { color: [0, 0, 0, 0.0] },
-                  size: 4
+                outline: {
+                  color: [0, 0, 0, 0.01],
+                  width: 0.5
                 }
-              ]
+              }]
             }
-          },
+          }
         })
         view.map.add(footprints)
 

@@ -59,6 +59,9 @@
         #saveButton:hover {
           background-color: rgba(76, 175, 80, 1);
         }
+        #saveButton.hidden {
+          display: none;
+        }
     </style>
 </head>
 <body>
@@ -151,6 +154,18 @@ require([
       saveButton.id = "saveButton";
       saveButton.textContent = "Save";
       let currentCoords = { longitude: null, latitude: null, heading: null };
+
+      async function checkIfCached(longitude, latitude, heading) {
+          const response = await fetch('/check-nearby-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ longitude, latitude, heading })
+          });
+
+          const result = await response.json();
+          return result;
+        }
+
       saveButton.onclick = async function() {
           if (!currentCoords.longitude) return;
 
@@ -174,6 +189,7 @@ require([
           const result = await response.json();
           if (result.success) {
             cachedStatus.textContent = "Cached: Yes";
+            saveButton.classList.add('hidden');
           }
         };
       coordOverlay.appendChild(saveButton);
@@ -319,10 +335,10 @@ require([
 
         view.ui.add(streetViewWidget, "manual");
 
-        view.on("double-click", (event) => {
+        view.on("double-click", async (event) => {
           event.stopPropagation();
 
-          view.hitTest(event).then((response) => {
+          view.hitTest(event).then(async (response) => {
             const latitude = event.mapPoint.latitude;
             const longitude = event.mapPoint.longitude;
             const currentHeading = view.camera.heading;
@@ -334,7 +350,21 @@ require([
               latitude: latitude.toFixed(6),
               heading: currentHeading.toFixed(2)
             };
-            cachedStatus.textContent = "Cached: No";
+
+            // Check if this location is already cached
+            const cacheResult = await checkIfCached(
+              currentCoords.longitude,
+              currentCoords.latitude,
+              currentCoords.heading
+            );
+
+            if (cacheResult.cached) {
+              cachedStatus.textContent = "Cached: Yes";
+              saveButton.classList.add('hidden');
+            } else {
+              cachedStatus.textContent = "Cached: No";
+              saveButton.classList.remove('hidden');
+            }
 
             const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=300x300&location=${latitude},${longitude}&fov=80&heading=${currentHeading}&pitch=0&key={{ google street view }}`;
             streetViewImage.src = streetViewUrl;

@@ -20,5 +20,26 @@ def index():
         content = file.read().replace('{{ host }}', HOST).replace('{{ google 3d tiles }}', GOOGLE_3D_TILES).replace('{{ google street view }}', GOOGLE_STREET_VIEW)
     return Response(content, mimetype='text/html')
 
+
+@app.route('/save-street-view', methods=['POST'])
+def save_street_view():
+    data = request.json
+    longitude = data.get('longitude')
+    latitude = data.get('latitude')
+    heading = data.get('heading')
+    image_data = data.get('image')
+
+    filename = f"{longitude}-{latitude}-{heading}.jpg"
+    filepath = os.path.join('street_images', filename)
+
+    # Decode base64 image and save
+    import base64
+    image_bytes = base64.b64decode(image_data.split(',')[1])
+
+    with open(filepath, 'wb') as f:
+        f.write(image_bytes)
+
+    return jsonify({'success': True, 'filename': filename})
+
 if __name__ == "__main__":
     app.run(host='127.0.0.1', port=3035, debug=False)

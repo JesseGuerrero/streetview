@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Street View Inspector</title>
+    <script src="https://js.arcgis.com/4.33/"></script>
+    <style>
+        html,
+        body,
+        #viewDiv {
+          height: 100vh;
+          width: 100vw;
+          display: block;
+        }
+        .esri-attribution {
+          display: none !important;
+        }
+        .esri-ui-top-left {
+          display: none !important;
+        }
+        canvas {
+          width: 100vw !important;
+          height: 100vh !important;
+          margin: 0;
+          padding: 0;
+          display: block;
+        }
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewDiv">
+    </div>
+<script>
+require([
+  "esri/WebScene",
+  "esri/Map",
+  "esri/views/MapView",
+  "esri/layers/IntegratedMesh3DTilesLayer",
+  "esri/Camera",
+  "esri/request",
+  "esri/identity/IdentityManager",
+  "esri/views/SceneView",
+  "esri/layers/FeatureLayer",
+  "esri/layers/GraphicsLayer",
+  "esri/layers/SceneLayer",
+  "esri/layers/TileLayer",
+  "esri/core/Collection",           // Add this
+  "esri/geometry/geometryEngine"
+], function (WebScene, esriMap, MapView, IntegratedMesh3DTilesLayer, Camera, esriRequest, IdentityManager, SceneView, FeatureLayer, GraphicsLayer, SceneLayer, TileLayer, Collection, geometryEngine) {
+    async function initializeMap() {
+        let view = new SceneView({
+          container: "viewDiv",
+          map: new esriMap(),
+          center: [-98.4936, 29.426],
+          zoom: 18,
+          camera: {
+            position: {
+              x: -98.5080,
+              y: 29.4250,
+              z: 800
+            },
+            heading: 90,
+            tilt: 65
+          },
+          environment: {
+            weather: {
+              type: "sunny",
+              cloudCover: 0.2,
+              precipitation: 0.0
+            }
+          }
+        });
+        const google3DTiles = new IntegratedMesh3DTilesLayer({
+          url: "https://tile.googleapis.com/v1/3dtiles/root.json",
+          title: "Google tiles",
+          customParameters: {
+            // see https://developers.google.com/maps/documentation/tile/3d-tiles-overview
+            "key": "{{ google 3d tiles }}"
+          }
+        });
+        view.map.add(google3DTiles)
+
+        const streetViewWidget = document.createElement("div");
+      streetViewWidget.id = "streetViewWidget";
+      streetViewWidget.className = "esri-widget";
+      streetViewWidget.style.position = "absolute";
+      streetViewWidget.style.top = "180px"; // Position below your other widgets
+      streetViewWidget.style.right = "20px";
+      streetViewWidget.style.width = "500px";
+      streetViewWidget.style.height = "500px";
+      streetViewWidget.style.padding = "0";
+      streetViewWidget.style.overflow = "hidden";
+      streetViewWidget.style.display = "none"; // Hidden initially
+      streetViewWidget.style.borderRadius = "8px";
+      streetViewWidget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.3)";
+
+      // Create image element for Street View
+      const streetViewImage = document.createElement("img");
+      streetViewImage.id = "streetViewImage";
+      streetViewImage.style.width = "100%";
+      streetViewImage.style.height = "calc(100% - 36px)"; // Adjust for title bar
+      streetViewImage.alt = "Street View";
+      streetViewWidget.appendChild(streetViewImage);
+
+      // Add styles for the resize handle
+        const style = document.createElement('style');
+        style.textContent = `
+          #streetViewWidget {
+            position: relative;
+          }
+
+          #resizeHandle {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 15px;
+            height: 15px;
+            background-color: rgba(0, 0, 0, 0.5);
+            cursor: nwse-resize; /* For bottom-left resize */
+            border-radius: 0 0 0 8px;
+            z-index: 10;
+          }
+        `;
+        document.head.appendChild(style);
+
+        // Create and add the resize handle
+        const resizeHandle = document.createElement('div');
+        resizeHandle.id = 'resizeHandle';
+        streetViewWidget.appendChild(resizeHandle);
+
+        // Add resize functionality
+        let isResizing = false;
+        let originalWidth, originalHeight, originalPos, startX, startY;
+        const viewDivElement = document.getElementById('viewDiv');
+
+        resizeHandle.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          isResizing = true;
+
+          // Get relative position to viewDiv
+          const viewDivRect = viewDivElement.getBoundingClientRect();
+          const widgetRect = streetViewWidget.getBoundingClientRect();
+
+          originalWidth = streetViewWidget.offsetWidth;
+          originalHeight = streetViewWidget.offsetHeight;
+          originalPos = {
+            left: widgetRect.left - viewDivRect.left,
+            top: widgetRect.top - viewDivRect.top
+          };
+
+          startX = e.clientX;
+          startY = e.clientY;
+
+          document.addEventListener('mousemove', resize);
+          document.addEventListener('mouseup', stopResize);
+        });
+
+        function resize(e) {
+          if (!isResizing) return;
+
+          const widthChange = startX - e.clientX;
+          const heightChange = e.clientY - startY;
+
+          const newWidth = Math.max(150, originalWidth + widthChange);
+          const newHeight = Math.max(150, originalHeight + heightChange);
+
+          streetViewWidget.style.width = newWidth + 'px';
+          streetViewWidget.style.height = newHeight + 'px';
+
+          // When resizing from bottom-left, adjust the left position relative to viewDiv
+          streetViewWidget.style.left = (originalPos.left - (newWidth - originalWidth)) + 'px';
+        }
+
+        function stopResize() {
+          isResizing = false;
+          document.removeEventListener('mousemove', resize);
+          document.removeEventListener('mouseup', stopResize);
+        }
+
+        // Dragging functionality
+        streetViewWidget.style.cursor = 'move';
+        let isDragging = false;
+        let offsetX, offsetY;
+
+        streetViewWidget.addEventListener('mousedown', function(e) {
+          if (e.target.id === 'resizeHandle' || e.target.tagName === 'BUTTON') {
+            return;
+          }
+
+          isDragging = true;
+
+          // Get position relative to viewDiv
+          const viewDivRect = viewDivElement.getBoundingClientRect();
+          const widgetRect = streetViewWidget.getBoundingClientRect();
+
+          offsetX = e.clientX - widgetRect.left;
+          offsetY = e.clientY - widgetRect.top;
+
+          e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+          if (!isDragging) return;
+
+          // Get viewDiv boundaries
+          const viewDivRect = viewDivElement.getBoundingClientRect();
+
+          // Calculate new position relative to viewDiv
+          const newLeft = e.clientX - viewDivRect.left - offsetX;
+          const newTop = e.clientY - viewDivRect.top - offsetY;
+
+          // Keep widget within viewDiv bounds
+          const maxLeft = viewDivRect.width - streetViewWidget.offsetWidth;
+          const maxTop = viewDivRect.height - streetViewWidget.offsetHeight;
+
+          streetViewWidget.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
+          streetViewWidget.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
+        });
+
+        document.addEventListener('mouseup', function() {
+          isDragging = false;
+        });
+
+          // Create title bar for the widget
+          const titleBar = document.createElement("div");
+          titleBar.style.backgroundColor = "rgba(125,125,125,1.0)";
+          titleBar.style.color = "white";
+          titleBar.style.padding = "8px";
+          titleBar.style.fontWeight = "bold";
+          titleBar.style.display = "flex";
+          titleBar.style.justifyContent = "space-between";
+          titleBar.style.alignItems = "center";
+          titleBar.style.marginTop = "-5px";
+          titleBar.innerHTML = "<span>Street View</span>";
+
+          // Add close button
+          const closeButton = document.createElement("button");
+          closeButton.innerHTML = "X";
+          closeButton.style.background = "none";
+          closeButton.style.border = "none";
+          closeButton.style.border = "none";
+          closeButton.style.color = "white";
+          closeButton.style.fontSize = "20px";
+          closeButton.style.cursor = "pointer";
+          closeButton.style.padding = "0 5px";
+          closeButton.onclick = function() {
+              streetViewWidget.style.display = "none";
+          };
+          titleBar.appendChild(closeButton);
+          streetViewWidget.appendChild(titleBar);
+
+        view.ui.add(streetViewWidget, "manual");
+
+        view.on("double-click", (event) => {
+          event.stopPropagation();
+
+          // Perform hit test
+          view.hitTest(event).then((response) => {
+              // Get coordinates and camera heading
+              const latitude = event.mapPoint.latitude;
+              const longitude = event.mapPoint.longitude;
+              const currentHeading = view.camera.heading;
+
+              console.log("Longitude:", longitude);
+              console.log("Latitude:", latitude);
+              console.log("Heading:", currentHeading);
+
+              // Update the Street View image
+              const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=300x300&location=${latitude},${longitude}&fov=80&heading=${currentHeading}&pitch=0&key={{ google street view }}`;
+              streetViewImage.src = streetViewUrl;
+
+              // Show the widget
+              streetViewWidget.style.display = "block";
+          });
+      });
+    }
+    initializeMap()
+});
+
+</script>
+</body>
+</html>

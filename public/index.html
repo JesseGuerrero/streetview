@@ -28,6 +28,37 @@
         body {
             margin: 0;
         }
+        #coordOverlay {
+          position: absolute;
+          top: 40px;
+          right: 10px;
+          background-color: rgba(0, 0, 0, 0.7);
+          color: white;
+          padding: 8px 12px;
+          font-family: monospace;
+          font-size: 12px;
+          border-radius: 4px;
+          line-height: 1.5;
+          white-space: pre;
+          pointer-events: auto;
+        }
+        #saveButton {
+          background-color: rgba(76, 175, 80, 0.9);
+          color: white;
+          border: none;
+          padding: 4px 12px;
+          margin-top: 8px;
+          cursor: pointer;
+          border-radius: 3px;
+          font-family: monospace;
+          font-size: 11px;
+          display: block;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        #saveButton:hover {
+          background-color: rgba(76, 175, 80, 1);
+        }
     </style>
 </head>
 <body>
@@ -47,7 +78,7 @@ require([
   "esri/layers/GraphicsLayer",
   "esri/layers/SceneLayer",
   "esri/layers/TileLayer",
-  "esri/core/Collection",           // Add this
+  "esri/core/Collection",
   "esri/geometry/geometryEngine"
 ], function (WebScene, esriMap, MapView, IntegratedMesh3DTilesLayer, Camera, esriRequest, IdentityManager, SceneView, FeatureLayer, GraphicsLayer, SceneLayer, TileLayer, Collection, geometryEngine) {
     async function initializeMap() {
@@ -77,7 +108,6 @@ require([
           url: "https://tile.googleapis.com/v1/3dtiles/root.json",
           title: "Google tiles",
           customParameters: {
-            // see https://developers.google.com/maps/documentation/tile/3d-tiles-overview
             "key": "{{ google 3d tiles }}"
           }
         });
@@ -87,26 +117,47 @@ require([
       streetViewWidget.id = "streetViewWidget";
       streetViewWidget.className = "esri-widget";
       streetViewWidget.style.position = "absolute";
-      streetViewWidget.style.top = "180px"; // Position below your other widgets
+      streetViewWidget.style.top = "180px";
       streetViewWidget.style.right = "20px";
       streetViewWidget.style.width = "500px";
       streetViewWidget.style.height = "500px";
       streetViewWidget.style.padding = "0";
       streetViewWidget.style.overflow = "hidden";
-      streetViewWidget.style.display = "none"; // Hidden initially
+      streetViewWidget.style.display = "none";
       streetViewWidget.style.borderRadius = "8px";
       streetViewWidget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.3)";
 
-      // Create image element for Street View
       const streetViewImage = document.createElement("img");
       streetViewImage.id = "streetViewImage";
       streetViewImage.style.width = "100%";
-      streetViewImage.style.height = "calc(100% - 36px)"; // Adjust for title bar
+      streetViewImage.style.height = "calc(100% - 36px)";
       streetViewImage.alt = "Street View";
       streetViewWidget.appendChild(streetViewImage);
 
-      // Add styles for the resize handle
-        const style = document.createElement('style');
+      const coordOverlay = document.createElement("div");
+      coordOverlay.id = "coordOverlay";
+
+      const coordText = document.createElement("div");
+      coordText.id = "coordText";
+      coordOverlay.appendChild(coordText);
+
+      const cachedStatus = document.createElement("div");
+      cachedStatus.id = "cachedStatus";
+      cachedStatus.textContent = "Cached: No";
+      coordOverlay.appendChild(cachedStatus);
+
+      const saveButton = document.createElement("button");
+      saveButton.id = "saveButton";
+      saveButton.textContent = "Save";
+      saveButton.onclick = function() {
+        console.log("Save button clicked");
+        // Add your save logic here
+      };
+      coordOverlay.appendChild(saveButton);
+
+      streetViewWidget.appendChild(coordOverlay);
+
+      const style = document.createElement('style');
         style.textContent = `
           #streetViewWidget {
             position: relative;
@@ -119,19 +170,17 @@ require([
             width: 15px;
             height: 15px;
             background-color: rgba(0, 0, 0, 0.5);
-            cursor: nwse-resize; /* For bottom-left resize */
+            cursor: nwse-resize;
             border-radius: 0 0 0 8px;
             z-index: 10;
           }
         `;
         document.head.appendChild(style);
 
-        // Create and add the resize handle
         const resizeHandle = document.createElement('div');
         resizeHandle.id = 'resizeHandle';
         streetViewWidget.appendChild(resizeHandle);
 
-        // Add resize functionality
         let isResizing = false;
         let originalWidth, originalHeight, originalPos, startX, startY;
         const viewDivElement = document.getElementById('viewDiv');
@@ -142,7 +191,6 @@ require([
 
           isResizing = true;
 
-          // Get relative position to viewDiv
           const viewDivRect = viewDivElement.getBoundingClientRect();
           const widgetRect = streetViewWidget.getBoundingClientRect();
 
@@ -172,7 +220,6 @@ require([
           streetViewWidget.style.width = newWidth + 'px';
           streetViewWidget.style.height = newHeight + 'px';
 
-          // When resizing from bottom-left, adjust the left position relative to viewDiv
           streetViewWidget.style.left = (originalPos.left - (newWidth - originalWidth)) + 'px';
         }
 
@@ -182,7 +229,6 @@ require([
           document.removeEventListener('mouseup', stopResize);
         }
 
-        // Dragging functionality
         streetViewWidget.style.cursor = 'move';
         let isDragging = false;
         let offsetX, offsetY;
@@ -194,7 +240,6 @@ require([
 
           isDragging = true;
 
-          // Get position relative to viewDiv
           const viewDivRect = viewDivElement.getBoundingClientRect();
           const widgetRect = streetViewWidget.getBoundingClientRect();
 
@@ -207,14 +252,11 @@ require([
         document.addEventListener('mousemove', function(e) {
           if (!isDragging) return;
 
-          // Get viewDiv boundaries
           const viewDivRect = viewDivElement.getBoundingClientRect();
 
-          // Calculate new position relative to viewDiv
           const newLeft = e.clientX - viewDivRect.left - offsetX;
           const newTop = e.clientY - viewDivRect.top - offsetY;
 
-          // Keep widget within viewDiv bounds
           const maxLeft = viewDivRect.width - streetViewWidget.offsetWidth;
           const maxTop = viewDivRect.height - streetViewWidget.offsetHeight;
 
@@ -226,7 +268,6 @@ require([
           isDragging = false;
         });
 
-          // Create title bar for the widget
           const titleBar = document.createElement("div");
           titleBar.style.backgroundColor = "rgba(125,125,125,1.0)";
           titleBar.style.color = "white";
@@ -238,7 +279,6 @@ require([
           titleBar.style.marginTop = "-5px";
           titleBar.innerHTML = "<span>Street View</span>";
 
-          // Add close button
           const closeButton = document.createElement("button");
           closeButton.innerHTML = "X";
           closeButton.style.background = "none";
@@ -259,22 +299,16 @@ require([
         view.on("double-click", (event) => {
           event.stopPropagation();
 
-          // Perform hit test
           view.hitTest(event).then((response) => {
-              // Get coordinates and camera heading
               const latitude = event.mapPoint.latitude;
               const longitude = event.mapPoint.longitude;
               const currentHeading = view.camera.heading;
 
-              console.log("Longitude:", longitude);
-              console.log("Latitude:", latitude);
-              console.log("Heading:", currentHeading);
+              coordText.textContent = `lon: ${longitude.toFixed(6)}\nlat: ${latitude.toFixed(6)}\nheading: ${currentHeading.toFixed(2)}`;
 
-              // Update the Street View image
               const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=300x300&location=${latitude},${longitude}&fov=80&heading=${currentHeading}&pitch=0&key={{ google street view }}`;
               streetViewImage.src = streetViewUrl;
 
-              // Show the widget
               streetViewWidget.style.display = "block";
           });
       });

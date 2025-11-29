@@ -4,6 +4,7 @@ from flask_sock import Sock
 from flask_cors import CORS
 from dotenv import load_dotenv
 import math
+from vllm import inferenceAddress, street_images, addresses, captions_dir, images_dir, processAddress, getCaption, repopulate_street_images
 
 load_dotenv()
 GOOGLE_3D_TILES = os.environ.get("GOOGLE_3D_TILES")
@@ -78,11 +79,12 @@ def list_street_views():
 
     return jsonify({'images': saved_images})
 
-
+import base64
 @app.route('/check-nearby-image', methods=['POST'])
 def check_nearby_image():
     """Check if there's a cached image within 10 feet and 15 degrees heading"""
     data = request.json
+    target_address = str(data['address'])
     target_lon = float(data.get('longitude'))
     target_lat = float(data.get('latitude'))
     target_heading = float(data.get('heading'))
@@ -91,25 +93,38 @@ def check_nearby_image():
     if not os.path.exists(images_dir):
         return jsonify({'cached': False})
     for filename in os.listdir(images_dir):
-        if filename.endswith('.jpg'):
+        if filename.endswith('.jpg') and filename.startswith(target_address):
             parts = filename.replace('.jpg', '').split('_')
-            if len(parts) == 3:
+            if len(parts) == 4:
                 try:
-                    saved_lon = float(parts[0])
-                    saved_lat = float(parts[1])
-                    saved_heading = float(parts[2])
+                    saved_address = str(parts[0])
+                    saved_lon = float(parts[1])
+                    saved_lat = float(parts[2])
+                    saved_heading = float(parts[3])
+                    caption = getCaption(saved_address)
 
                     # Check distance (within 10 feet)
                     distance = haversine_distance(target_lat, target_lon, saved_lat, saved_lon)
 
                     # Check heading difference (within 15 degrees)
                     heading_diff = heading_difference(target_heading, saved_heading)
-                    if distance <= 10 and heading_diff <= 15:
+                    if distance <= 15 and heading_diff <= 15:
+                        image_path = f'./street_images/{filename}'
+                        img_base64 = None
+                        with open(image_path, 'rb') as img_file:
+                            img_data = img_file.read()
+                            img_base64 = base64.b64encode(img_data).decode('utf-8').replace('\n', '')
+                        count = 0
+                        if saved_address in street_images:
+                            count = len(street_images[saved_address])
                         return jsonify({
                             'cached': True,
                             'filename': filename,
                             'distance': distance,
-                            'heading_difference': heading_diff
+                            'heading_difference': heading_diff,
+                            'caption': caption,
+                            'image': img_base64,
+                            'count': count
                         })
                 except ValueError as e:
                     print(e)
@@ -118,15 +133,36 @@ def check_nearby_image():
     return jsonify({'cached': False})
 
 
+@app.route('/process-all-images', methods=['POST'])
+def process_all_images():
+    try:
+        repopulate_street_images()
+        for street_address in addresses:
+            processAddress(street_address)
+        return jsonify({'success': True})
+    except Exception as e:
+        print(e)
+        return jsonify({'success': False})
+@app.route('/process-address', methods=['POST'])
+def process_street_address():
+    try:
+        repopulate_street_images()
+        data = request.json
+        processAddress(data['address'])
+        return jsonify({'success': True})
+    except Exception as e:
+        print(e)
+        return jsonify({'success': False})
 @app.route('/save-street-view', methods=['POST'])
 def save_street_view():
     data = request.json
+    address = data['address']
     longitude = data.get('longitude')
     latitude = data.get('latitude')
     heading = data.get('heading')
     image_data = data.get('image')
 
-    filename = f"{longitude}_{latitude}_{heading}.jpg"
+    filename = f"{address}_{longitude}_{latitude}_{heading}.jpg"
     filepath = os.path.join('street_images', filename)
 
     # Decode base64 image and save
@@ -140,4 +176,5 @@ def save_street_view():
 
 
 if __name__ == "__main__":
-    app.run(host='127.0.0.1', port=3035, debug=False)
+    repopulate_street_images()
+    app.run(host='127.0.0.1', port=3035, debug=True)
